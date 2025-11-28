@@ -101,18 +101,26 @@ class SubtitleModule(_ModuleBase):
             time.sleep(1)
         # 目录仍然不存在，且有文件夹名，则创建目录
         if not working_dir_item and folder_name:
-            parent_dir_item = storageChain.get_file_item(storage, download_dir)
-            if parent_dir_item:
-                working_dir_item = storageChain.create_folder(
-                    parent_dir_item,
-                    folder_name
-                )
-            else:
+            root_dir_item = storageChain.get_file_item(storage, download_dir)
+            if not root_dir_item:
                 logger.error(f"下载根目录不存在，无法创建字幕文件夹：{download_dir}")
                 return
+            working_dir_item = storageChain.create_folder(
+                root_dir_item,
+                folder_name
+            )
         if not working_dir_item:
             logger.error(f"下载目录不存在，无法保存字幕：{download_dir / folder_name}")
             return
+        # upload subtitle file into storage
+        def _upload_sub(sub_file: Path):
+            target_sub_file = Path(working_dir_item.path) / Path(sub_file.name)
+            if storageChain.get_file_item(storage, target_sub_file):
+                logger.info(f"字幕文件已存在：{target_sub_file}")
+                return
+            logger.info(f"转移字幕 {sub_file} 到 {target_sub_file} ...")
+            storageChain.upload_file(working_dir_item, sub_file)
+        
         # 读取网站代码
         request = RequestUtils(cookies=torrent.site_cookie, ua=torrent.site_ua)
         res = request.get_res(torrent.page_url)
@@ -161,12 +169,7 @@ class SubtitleModule(_ModuleBase):
                         shutil.unpack_archive(zip_file, zip_path, format='zip')
                         # 遍历转移文件
                         for sub_file in SystemUtils.list_files(zip_path, settings.RMT_SUBEXT):
-                            target_sub_file = Path(working_dir_item.path) / Path(sub_file.name)
-                            if storageChain.get_file_item(storage, target_sub_file):
-                                logger.info(f"字幕文件已存在：{target_sub_file}")
-                                continue
-                            logger.info(f"转移字幕 {sub_file} 到 {target_sub_file} ...")
-                            storageChain.upload_file(working_dir_item, sub_file)
+                            _upload_sub(sub_file)
                         # 删除临时文件
                         try:
                             shutil.rmtree(zip_path)
@@ -177,12 +180,7 @@ class SubtitleModule(_ModuleBase):
                         sub_file = settings.TEMP_PATH / file_name
                         # 保存
                         sub_file.write_bytes(ret.content)
-                        target_sub_file = Path(working_dir_item.path) / Path(sub_file.name)
-                        if storageChain.get_file_item(storage, target_sub_file):
-                            logger.info(f"字幕文件已存在：{target_sub_file}")
-                            continue
-                        logger.info(f"转移字幕 {sub_file} 到 {target_sub_file} ...")
-                        storageChain.upload_file(working_dir_item, sub_file)
+                        _upload_sub(sub_file)
                 else:
                     logger.error(f"下载字幕文件失败：{sublink}")
                     continue

@@ -122,10 +122,14 @@ class DirectoryHelper:
         """
         src_path, src_storage = src
         tar_path, tar_storage = tar
-        if "local" == tar_storage == src_storage:
+        # 存储类型不相同
+        if tar_storage != src_storage:
+            return False
+        # 本地存储，判断是否同盘
+        if "local" == src_storage:
             return SystemUtils.is_same_disk(src_path, tar_path)
-        # 网络存储，直接比较类型
-        return src_storage == tar_storage
+        # 同种网盘存储
+        return True
 
     @staticmethod
     def get_media_root_path(rename_format: str, rename_path: Path) -> Optional[Path]:
